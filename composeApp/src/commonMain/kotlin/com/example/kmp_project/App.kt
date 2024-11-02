@@ -9,6 +9,7 @@ import androidx.compose.runtime.setValue
 import com.example.kmp_project.data.GameLevels
 import com.example.kmp_project.data.GameResult
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import kotlin.math.max
 
 @Composable
 @Preview
@@ -17,6 +18,7 @@ fun App() {
 
     var activePage by rememberSaveable { mutableStateOf(Page.Menu) }
     var selectedIndex by rememberSaveable { mutableStateOf(0) }
+
     var gameResult = rememberSaveable { GameResult() }
 
     MaterialTheme {
@@ -24,6 +26,10 @@ fun App() {
             Page.Game -> Game(
                 gameLevels[selectedIndex],
                 onGameEnd = { result ->
+                    val gameLevel = gameLevels[selectedIndex]
+                    gameLevel.bestScore = max(
+                        result.score, gameLevel.bestScore
+                    )
                     gameResult = result
                     activePage = Page.Result
                 },
