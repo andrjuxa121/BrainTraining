@@ -33,6 +33,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.example.kmp_project.data.GameResult
 import com.example.kmp_project.models.LevelInfo
 import com.example.kmp_project.models.LevelType
 import com.example.kmp_project.style.TextStyles
@@ -42,7 +43,7 @@ import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
 
 private const val QUESTIONS_SIZE = 4
-private const val LEVEL_TIME_SECONDS = 30
+private const val LEVEL_TIME_SECONDS = 5//30
 
 private val randomQuestionIndex: Int
     get() = Random.nextInt(0, QUESTIONS_SIZE)
@@ -70,11 +71,15 @@ private fun getOtherQuestionIndex(
 @Preview
 fun Game(
     gameLevel: LevelInfo,
+    onGameEnd: (result: GameResult) -> Unit,
     onBackToMenu: () -> Unit
 ) {
     var timeRemaining by rememberSaveable { mutableStateOf(LEVEL_TIME_SECONDS) }
     var score by rememberSaveable { mutableStateOf(0) }
     var scoreDelta by remember { mutableStateOf(0) }
+
+    var correctAnswers by remember { mutableStateOf(0) }
+    var wrongAnswers by remember { mutableStateOf(0) }
 
     var questionIndex by remember { mutableStateOf(randomQuestionIndex) }
     var responseIndex by remember { mutableStateOf(randomResponseIndex(questionIndex)) }
@@ -86,7 +91,12 @@ fun Game(
             timeRemaining--
 
             if (timeRemaining == 0) {
-                onBackToMenu.invoke()
+                val gameResult = GameResult(
+                    score,
+                    correctAnswers,
+                    wrongAnswers
+                )
+                onGameEnd.invoke(gameResult)
                 break
             }
         }
@@ -106,7 +116,14 @@ fun Game(
             questionIndex == responseIndex
         } else questionIndex != responseIndex
 
-        if (isAnswerCorrect) score++ else score--
+        if (isAnswerCorrect) {
+            correctAnswers++
+            score++
+        } else {
+            wrongAnswers++
+            score--
+        }
+        println("correctAnswers: $correctAnswers. wrongAnswers: $wrongAnswers")
         if (score < 0) score = 0
 
         scoreDelta = if (isAnswerCorrect) 1 else -1
