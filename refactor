@@ -1,0 +1,969 @@
+diff --git a/composeApp/src/androidMain/kotlin/com/example/kmp_project/MainActivity.kt b/composeApp/src/androidMain/kotlin/com/example/kmp_project/MainActivity.kt
+index 27eaac0..e99c7d5 100644
+--- a/composeApp/src/androidMain/kotlin/com/example/kmp_project/MainActivity.kt
++++ b/composeApp/src/androidMain/kotlin/com/example/kmp_project/MainActivity.kt
+@@ -1,23 +1,16 @@
++// MainActivity.kt
+ package com.example.kmp_project
+ 
+ import android.os.Bundle
+ import androidx.activity.ComponentActivity
+ import androidx.activity.compose.setContent
+-import androidx.compose.runtime.Composable
+-import androidx.compose.ui.tooling.preview.Preview
++import com.example.kmp_project.ui.App
+ 
+ class MainActivity : ComponentActivity() {
+     override fun onCreate(savedInstanceState: Bundle?) {
+         super.onCreate(savedInstanceState)
+-
+         setContent {
+             App()
+         }
+     }
+-}
+-
+-@Preview
+-@Composable
+-fun AppAndroidPreview() {
+-    App()
+ }
+\ No newline at end of file
+diff --git a/composeApp/src/commonMain/kotlin/com/example/kmp_project/App.kt b/composeApp/src/commonMain/kotlin/com/example/kmp_project/App.kt
+deleted file mode 100644
+index 6e4cba4..0000000
+--- a/composeApp/src/commonMain/kotlin/com/example/kmp_project/App.kt
++++ /dev/null
+@@ -1,57 +0,0 @@
+-package com.example.kmp_project
+-
+-import androidx.compose.material.MaterialTheme
+-import androidx.compose.runtime.Composable
+-import androidx.compose.runtime.getValue
+-import androidx.compose.runtime.mutableStateOf
+-import androidx.compose.runtime.saveable.rememberSaveable
+-import androidx.compose.runtime.setValue
+-import com.example.kmp_project.data.GameLevels
+-import com.example.kmp_project.data.GameResult
+-import org.jetbrains.compose.ui.tooling.preview.Preview
+-import kotlin.math.max
+-
+-@Composable
+-@Preview
+-fun App() {
+-    val gameLevels = rememberSaveable { GameLevels.levels }
+-
+-    var activePage by rememberSaveable { mutableStateOf(Page.Menu) }
+-    var selectedIndex by rememberSaveable { mutableStateOf(0) }
+-
+-    var gameResult = rememberSaveable { GameResult() }
+-
+-    MaterialTheme {
+-        when (activePage) {
+-            Page.Game -> Game(
+-                gameLevels[selectedIndex],
+-                onGameEnd = { result ->
+-                    val gameLevel = gameLevels[selectedIndex]
+-                    gameLevel.bestScore = max(
+-                        result.score, gameLevel.bestScore
+-                    )
+-                    gameResult = result
+-                    activePage = Page.Result
+-                },
+-                onBackToMenu = { activePage = Page.Menu}
+-            )
+-            Page.Result -> ResultPage(
+-                gameLevels[selectedIndex],
+-                gameResult,
+-                onBackToMenu = { activePage = Page.Menu}
+-            )
+-            else -> Menu(
+-                gameLevels = gameLevels,
+-                selectedIndex = selectedIndex,
+-                onLevelSelected = { levelIndex ->
+-                    selectedIndex = levelIndex
+-                },
+-                onLevelStart = { activePage = Page.Game }
+-            )
+-        }
+-    }
+-}
+-
+-private enum class Page {
+-    Menu, Game, Result
+-}
+\ No newline at end of file
+diff --git a/composeApp/src/commonMain/kotlin/com/example/kmp_project/Game.kt b/composeApp/src/commonMain/kotlin/com/example/kmp_project/Game.kt
+deleted file mode 100644
+index 2eafc46..0000000
+--- a/composeApp/src/commonMain/kotlin/com/example/kmp_project/Game.kt
++++ /dev/null
+@@ -1,337 +0,0 @@
+-package com.example.kmp_project
+-
+-import androidx.compose.foundation.layout.Box
+-import androidx.compose.foundation.layout.Column
+-import androidx.compose.foundation.layout.Row
+-import androidx.compose.foundation.layout.Spacer
+-import androidx.compose.foundation.layout.fillMaxWidth
+-import androidx.compose.foundation.layout.height
+-import androidx.compose.foundation.layout.padding
+-import androidx.compose.foundation.layout.size
+-import androidx.compose.material.Button
+-import androidx.compose.material.ButtonDefaults
+-import androidx.compose.material.Icon
+-import androidx.compose.material.IconButton
+-import androidx.compose.material.LinearProgressIndicator
+-import androidx.compose.material.Text
+-import androidx.compose.material.icons.Icons
+-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+-import androidx.compose.runtime.Composable
+-import androidx.compose.runtime.LaunchedEffect
+-import androidx.compose.runtime.getValue
+-import androidx.compose.runtime.mutableStateOf
+-import androidx.compose.runtime.remember
+-import androidx.compose.runtime.saveable.rememberSaveable
+-import androidx.compose.runtime.setValue
+-import androidx.compose.ui.Alignment
+-import androidx.compose.ui.Modifier
+-import androidx.compose.ui.draw.scale
+-import androidx.compose.ui.graphics.Color
+-import androidx.compose.ui.text.AnnotatedString
+-import androidx.compose.ui.text.SpanStyle
+-import androidx.compose.ui.text.buildAnnotatedString
+-import androidx.compose.ui.text.font.FontWeight
+-import androidx.compose.ui.text.withStyle
+-import androidx.compose.ui.unit.dp
+-import com.example.kmp_project.data.GameResult
+-import com.example.kmp_project.models.LevelInfo
+-import com.example.kmp_project.models.LevelType
+-import com.example.kmp_project.style.TextStyles
+-import kotlinx.coroutines.delay
+-import org.jetbrains.compose.ui.tooling.preview.Preview
+-import kotlin.random.Random
+-import kotlin.time.Duration.Companion.seconds
+-
+-private const val QUESTIONS_SIZE = 4
+-private const val LEVEL_TIME_SECONDS = 5//30
+-
+-private val randomQuestionIndex: Int
+-    get() = Random.nextInt(0, QUESTIONS_SIZE)
+-
+-private fun randomResponseIndex(
+-    questionIndex: Int
+-): Int {
+-    return if (Random.nextBoolean()) {
+-        getOtherQuestionIndex(questionIndex)
+-    } else questionIndex
+-}
+-
+-private fun getOtherQuestionIndex(
+-    questionIndex: Int
+-): Int {
+-    while (true) {
+-        val index = randomQuestionIndex
+-        if (index != questionIndex) {
+-             return index
+-        }
+-    }
+-}
+-
+-@Composable
+-@Preview
+-fun Game(
+-    gameLevel: LevelInfo,
+-    onGameEnd: (result: GameResult) -> Unit,
+-    onBackToMenu: () -> Unit
+-) {
+-    var timeRemaining by rememberSaveable { mutableStateOf(LEVEL_TIME_SECONDS) }
+-    var score by rememberSaveable { mutableStateOf(0) }
+-    var scoreDelta by remember { mutableStateOf(0) }
+-
+-    var correctAnswers by remember { mutableStateOf(0) }
+-    var wrongAnswers by remember { mutableStateOf(0) }
+-
+-    var questionIndex by remember { mutableStateOf(randomQuestionIndex) }
+-    var responseIndex by remember { mutableStateOf(randomResponseIndex(questionIndex)) }
+-    var randomIndex by remember { mutableStateOf(randomQuestionIndex) }
+-
+-    LaunchedEffect(Unit) {
+-        while(true) {
+-            delay(1.seconds)
+-            timeRemaining--
+-
+-            if (timeRemaining == 0) {
+-                val gameResult = GameResult(
+-                    score,
+-                    correctAnswers,
+-                    wrongAnswers
+-                )
+-                onGameEnd.invoke(gameResult)
+-                break
+-            }
+-        }
+-    }
+-    LaunchedEffect(Unit) {
+-        while (true) {
+-            delay(0.1.seconds)
+-
+-            if (scoreDelta != 0) {
+-                delay(0.1.seconds)
+-                scoreDelta = 0 // Then hide the text
+-            }
+-        }
+-    }
+-    val checkTheAnswer: (yes: Boolean) -> Unit = { yes ->
+-        val isAnswerCorrect = if (yes) {
+-            questionIndex == responseIndex
+-        } else questionIndex != responseIndex
+-
+-        if (isAnswerCorrect) {
+-            correctAnswers++
+-            score++
+-        } else {
+-            wrongAnswers++
+-            score--
+-        }
+-        println("correctAnswers: $correctAnswers. wrongAnswers: $wrongAnswers")
+-        if (score < 0) score = 0
+-
+-        scoreDelta = if (isAnswerCorrect) 1 else -1
+-
+-        questionIndex = getOtherQuestionIndex(questionIndex)
+-        responseIndex = randomResponseIndex(questionIndex)
+-        randomIndex = randomQuestionIndex
+-    }
+-    Column(
+-        Modifier.fillMaxWidth(),
+-        horizontalAlignment = Alignment.CenterHorizontally
+-    ) {
+-        LinearProgressIndicator(
+-            progress = timeRemaining / LEVEL_TIME_SECONDS.toFloat(),
+-            color = Color.DarkGray,
+-            modifier = Modifier.fillMaxWidth()
+-                .height(10.dp).scale(scaleX = -1f, scaleY = 1f)
+-        )
+-        Box(modifier = Modifier.fillMaxWidth()) {
+-            Row(
+-                modifier = Modifier.fillMaxWidth(),
+-                verticalAlignment = Alignment.CenterVertically
+-            ) {
+-                IconButton(onClick = onBackToMenu) {
+-                    Icon(
+-                        Icons.AutoMirrored.Filled.ArrowBack,
+-                        null,
+-                    )
+-                }
+-                Spacer(modifier = Modifier.weight(1f))
+-                Column(
+-                    horizontalAlignment = Alignment.CenterHorizontally,
+-                    modifier = Modifier.padding(horizontal = 10.dp)
+-                ) {
+-                    Text(
+-                        text = "Час до кінця",
+-                        style = TextStyles.main
+-                    )
+-                    Text(
+-                        text = "00:${timeRemaining}",
+-                        style = TextStyles.bold
+-                    )
+-                }
+-            }
+-            Column(
+-                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+-                horizontalAlignment = Alignment.CenterHorizontally
+-            ) {
+-                Text(
+-                    text = "Рахунок",
+-                    style = TextStyles.bold
+-                )
+-                Box(
+-                    contentAlignment = Alignment.Center,
+-                    modifier = Modifier.padding(top = 10.dp)
+-                ) {
+-                    Text(
+-                        text = score.toString(),
+-                        style = TextStyles.score,
+-                        modifier = Modifier.padding(top = 10.dp)
+-                    )
+-                    if (scoreDelta != 0) {
+-                        Text(
+-                            text = if (scoreDelta > 0) "+1" else "-1",
+-                            style = TextStyles.score.copy(
+-                                color = if (scoreDelta > 0) {
+-                                    Color.Green
+-                                } else Color.Red,
+-                            ),
+-                            modifier = Modifier.padding(start = 50.dp, bottom = 10.dp)
+-                        )
+-                    }
+-                }
+-            }
+-        }
+-        Spacer(
+-            modifier = Modifier.fillMaxWidth().weight(1.5f)
+-        )
+-        LevelImage(
+-            levelType = gameLevel.type,
+-            questionIndex = questionIndex,
+-            shapeSize = 200,
+-            modifier = Modifier.fillMaxWidth().size(200.dp)
+-        )
+-        Spacer(
+-            modifier = Modifier.fillMaxWidth().weight(1f)
+-        )
+-        Text(
+-            text = getLevelQuestion(
+-                gameLevel.type,
+-                randomIndex,
+-                responseIndex,
+-            ),
+-            style = TextStyles.title.copy(
+-                fontWeight = FontWeight.Bold
+-            )
+-        )
+-        Spacer(
+-            modifier = Modifier.fillMaxWidth().weight(1f)
+-        )
+-        Row(
+-            modifier = Modifier.fillMaxWidth()
+-                .padding(bottom = 30.dp)
+-        ) {
+-            val modifier = Modifier.weight(2f)
+-            Spacer(modifier = Modifier.weight(1f))
+-            Button(
+-                onClick = { checkTheAnswer(false) },
+-                colors = ButtonDefaults.buttonColors(Color.Red),
+-                modifier = modifier
+-            ) {
+-                Text(
+-                    text = "Ні",
+-                    style = TextStyles.title,
+-                    modifier = Modifier.padding(vertical = 10.dp)
+-                )
+-            }
+-            Spacer(modifier = Modifier.weight(1f))
+-            Button(
+-                onClick = { checkTheAnswer(true) },
+-                colors = ButtonDefaults.buttonColors(Color.Green),
+-                modifier = modifier
+-            ) {
+-                Text(
+-                    text = "Так",
+-                    style = TextStyles.title,
+-                    modifier = Modifier.padding(vertical = 10.dp)
+-                )
+-            }
+-            Spacer(modifier = Modifier.weight(1f))
+-        }
+-    }
+-}
+-
+-@Composable
+-private fun LevelImage(
+-    levelType: LevelType,
+-    questionIndex: Int,
+-    shapeSize: Int,
+-    modifier: Modifier
+-) {
+-    Column(
+-        modifier = modifier,
+-        horizontalAlignment = Alignment.CenterHorizontally
+-    ) {
+-        if (levelType == LevelType.Directions) {
+-            ArrowShape(
+-                size = shapeSize.toFloat(),
+-                color = Color.Green,
+-                direction = ArrowDirection.entries[questionIndex]
+-            )
+-        } else {
+-            PolygonShape(
+-                cornersCount = Random.nextInt(2, 6),
+-                size = shapeSize.toFloat(),
+-                color = Colors.entries[questionIndex].color
+-            )
+-        }
+-    }
+-}
+-
+-private fun getLevelQuestion(
+-    levelType: LevelType,
+-    randomIndex: Int,
+-    responseIndex: Int
+-): AnnotatedString {
+-    return buildAnnotatedString {
+-        when (levelType) {
+-            LevelType.Colors -> {
+-                append("Колір фігури ")
+-                withStyle(style = SpanStyle(
+-                    color = Colors.entries[randomIndex].color,
+-                    fontWeight = FontWeight.ExtraBold
+-                )) {
+-                    append("${Colors.entries[responseIndex].text}?")
+-                }
+-            }
+-            LevelType.Directions -> {
+-                append("Стрілка показує ")
+-                withStyle(style = SpanStyle(
+-                    fontWeight = FontWeight.ExtraBold
+-                )) {
+-                    append("${ArrowDirection.entries[responseIndex].text}?")
+-                }
+-            }
+-        }
+-    }
+-}
+-
+-//@Composable
+-//private fun CountdownTimer(
+-//    targetTime: Int,
+-//    content: @Composable (remainingTime: Int) -> Unit
+-//) {
+-//    var remainingTime by remember { mutableStateOf(targetTime) }
+-//
+-//    content.invoke(remainingTime)
+-//
+-//    var isRunning by remember { mutableStateOf(false) }
+-//    LifecycleResumeEffect(Unit) {
+-//        isRunning = true
+-//        onPauseOrDispose { isRunning = false }
+-//    }
+-//
+-//    LaunchedEffect(isRunning) {
+-//        while (isRunning) {
+-//            remainingTime--
+-//            delay(1000)
+-//        }
+-//    }
+-//}
+\ No newline at end of file
+diff --git a/composeApp/src/commonMain/kotlin/com/example/kmp_project/Menu.kt b/composeApp/src/commonMain/kotlin/com/example/kmp_project/Menu.kt
+deleted file mode 100644
+index 1207636..0000000
+--- a/composeApp/src/commonMain/kotlin/com/example/kmp_project/Menu.kt
++++ /dev/null
+@@ -1,171 +0,0 @@
+-package com.example.kmp_project
+-
+-import androidx.compose.foundation.Image
+-import androidx.compose.foundation.clickable
+-import androidx.compose.foundation.gestures.Orientation
+-import androidx.compose.foundation.gestures.draggable
+-import androidx.compose.foundation.gestures.rememberDraggableState
+-import androidx.compose.foundation.gestures.scrollBy
+-import androidx.compose.foundation.layout.Column
+-import androidx.compose.foundation.layout.Row
+-import androidx.compose.foundation.layout.fillMaxWidth
+-import androidx.compose.foundation.layout.padding
+-import androidx.compose.foundation.layout.size
+-import androidx.compose.foundation.lazy.LazyRow
+-import androidx.compose.foundation.lazy.itemsIndexed
+-import androidx.compose.foundation.lazy.rememberLazyListState
+-import androidx.compose.foundation.shape.RoundedCornerShape
+-import androidx.compose.material.Button
+-import androidx.compose.material.Surface
+-import androidx.compose.material.Text
+-import androidx.compose.runtime.Composable
+-import androidx.compose.runtime.rememberCoroutineScope
+-import androidx.compose.ui.Alignment
+-import androidx.compose.ui.Modifier
+-import androidx.compose.ui.graphics.Color
+-import androidx.compose.ui.text.style.TextAlign
+-import androidx.compose.ui.unit.dp
+-import com.example.kmp_project.models.LevelInfo
+-import com.example.kmp_project.style.TextStyles
+-import kotlinx.coroutines.launch
+-import org.jetbrains.compose.resources.imageResource
+-import org.jetbrains.compose.resources.painterResource
+-import org.jetbrains.compose.ui.tooling.preview.Preview
+-import testkmpproject.composeapp.generated.resources.Res
+-import testkmpproject.composeapp.generated.resources.compose_multiplatform
+-
+-@Composable
+-@Preview
+-fun Menu(
+-    gameLevels: List<LevelInfo>,
+-    selectedIndex: Int,
+-    onLevelSelected: (levelIndex: Int) -> Unit,
+-    onLevelStart: () -> Unit
+-) {
+-    Column(
+-        Modifier.fillMaxWidth(),
+-        horizontalAlignment = Alignment.CenterHorizontally
+-    ) {
+-        LevelDetails(
+-            levelInfo = gameLevels[selectedIndex],
+-            modifier = Modifier.fillMaxWidth().weight(1f),
+-            onLevelStart = onLevelStart
+-        )
+-        ListOfLevels(
+-            levels = gameLevels,
+-            onLevelSelected = onLevelSelected
+-        )
+-    }
+-}
+-
+-@Composable
+-fun LevelDetails(
+-    levelInfo: LevelInfo,
+-    modifier: Modifier,
+-    onLevelStart: () -> Unit
+-) {
+-    Column(
+-        modifier = modifier,
+-        horizontalAlignment = Alignment.CenterHorizontally
+-    ) {
+-        Text(
+-            text = "Найкращий результат",
+-            style = TextStyles.main
+-        )
+-        Text(
+-            text = levelInfo.bestScore.toString(),
+-            style = TextStyles.bold
+-        )
+-        Image(
+-            imageResource(levelInfo.imgPreview!!), null,
+-            modifier = Modifier.fillMaxWidth().weight(1f).padding(top = 10.dp)
+-        )
+-        Row {
+-            Column(modifier = Modifier.weight(1f)) {}
+-            Column(
+-                modifier = Modifier.weight(2f).padding(10.dp),
+-                horizontalAlignment = Alignment.CenterHorizontally
+-            ) {
+-                Text(
+-                    text = levelInfo.name,
+-                    style = TextStyles.title
+-                )
+-                Text(
+-                    text = levelInfo.description,
+-                    style = TextStyles.main,
+-                    textAlign = TextAlign.Center,
+-                )
+-            }
+-            Column(modifier = Modifier.weight(1f)) {}
+-        }
+-        Button(onClick = onLevelStart) {
+-            Text("Почати гру")
+-        }
+-    }
+-}
+-
+-@Composable
+-fun ListOfLevels(
+-    levels: List<LevelInfo>,
+-    onLevelSelected: (index: Int) -> Unit
+-) {
+-    val scrollState = rememberLazyListState()
+-    val coroutineScope = rememberCoroutineScope()
+-    LazyRow(
+-        state = scrollState,
+-        modifier = Modifier
+-            .fillMaxWidth()
+-            .draggable(
+-                orientation = Orientation.Horizontal,
+-                state = rememberDraggableState { delta ->
+-                    coroutineScope.launch {
+-                        scrollState.scrollBy(-delta)
+-                    }
+-                },
+-            ).padding(vertical = 10.dp)
+-    ) {
+-        itemsIndexed(items = levels) { index, level ->
+-            LevelPreview(
+-                levelInfo = level,
+-                onPreviewClicked = {
+-                    onLevelSelected.invoke(index)
+-                }
+-            )
+-        }
+-
+-    }
+-}
+-
+-@Composable
+-fun LevelPreview(
+-    levelInfo: LevelInfo,
+-    onPreviewClicked: () -> Unit
+-) {
+-    Surface(
+-        color = Color.LightGray,
+-        shape = RoundedCornerShape(10.dp),
+-        modifier = Modifier.size(150.dp, 100.dp)
+-            .padding(horizontal = 10.dp)
+-            .clickable {
+-                if (levelInfo.imgPreview != null) {
+-                    onPreviewClicked.invoke()
+-                }
+-            }
+-    ) {
+-        Column(
+-            horizontalAlignment = Alignment.CenterHorizontally,
+-            modifier = Modifier.padding(10.dp)
+-        ) {
+-            val imageRes = levelInfo.imgPreview ?: Res.drawable.compose_multiplatform
+-            Image(
+-                painterResource(imageRes), null,
+-                modifier = Modifier.fillMaxWidth().weight(1f)
+-            )
+-            Text(
+-                text = levelInfo.name,
+-                style = TextStyles.main,
+-                modifier = Modifier.padding(5.dp)
+-            )
+-        }
+-    }
+-}
+\ No newline at end of file
+diff --git a/composeApp/src/commonMain/kotlin/com/example/kmp_project/ResultPage.kt b/composeApp/src/commonMain/kotlin/com/example/kmp_project/ResultPage.kt
+deleted file mode 100644
+index cc0c9c4..0000000
+--- a/composeApp/src/commonMain/kotlin/com/example/kmp_project/ResultPage.kt
++++ /dev/null
+@@ -1,112 +0,0 @@
+-package com.example.kmp_project
+-
+-import androidx.compose.foundation.Image
+-import androidx.compose.foundation.layout.Column
+-import androidx.compose.foundation.layout.Row
+-import androidx.compose.foundation.layout.fillMaxSize
+-import androidx.compose.foundation.layout.fillMaxWidth
+-import androidx.compose.foundation.layout.padding
+-import androidx.compose.material.Button
+-import androidx.compose.material.Text
+-import androidx.compose.runtime.Composable
+-import androidx.compose.ui.Alignment
+-import androidx.compose.ui.Modifier
+-import androidx.compose.ui.text.style.TextAlign
+-import androidx.compose.ui.unit.dp
+-import com.example.kmp_project.data.GameResult
+-import com.example.kmp_project.models.LevelInfo
+-import com.example.kmp_project.style.TextStyles
+-import org.jetbrains.compose.resources.imageResource
+-import org.jetbrains.compose.ui.tooling.preview.Preview
+-
+-@Composable
+-@Preview
+-fun ResultPage(
+-    levelInfo: LevelInfo,
+-    gameResult: GameResult,
+-    onBackToMenu: () -> Unit
+-) {
+-    Column(
+-        modifier = Modifier.fillMaxSize(),
+-        horizontalAlignment = Alignment.CenterHorizontally
+-    ) {
+-        Text(
+-            text = "Рівень",
+-            style = TextStyles.main
+-        )
+-        Text(
+-            text = levelInfo.name,
+-            style = TextStyles.title
+-        )
+-        Image(
+-            imageResource(levelInfo.imgPreview!!), null,
+-            modifier = Modifier.fillMaxWidth().weight(1f).padding(top = 10.dp)
+-        )
+-        Row(
+-            modifier = Modifier.padding(top = 10.dp)
+-        ) {
+-            Column(modifier = Modifier.weight(1f)) {}
+-            Column(
+-                modifier = Modifier.weight(2f).padding(10.dp),
+-                horizontalAlignment = Alignment.CenterHorizontally
+-            ) {
+-                Text(
+-                    text = "Ваш результат",
+-                    style = TextStyles.bold
+-                )
+-                Text(
+-                    text = gameResult.score.toString(),
+-                    style = TextStyles.score
+-                )
+-                AnswersCount(
+-                    gameResult,
+-                    modifier = Modifier.fillMaxWidth()
+-                )
+-            }
+-            Column(modifier = Modifier.weight(1f)) {}
+-        }
+-        Button(
+-            onClick = onBackToMenu,
+-            modifier = Modifier.padding(10.dp)
+-        ) {
+-            Text("Повернутись в меню")
+-        }
+-    }
+-}
+-
+-@Composable
+-private fun AnswersCount(
+-    gameResult: GameResult,
+-    modifier: Modifier
+-) {
+-    Row(
+-        modifier = modifier
+-    ) {
+-        Column(
+-            modifier = Modifier.weight(1f).padding(10.dp),
+-            horizontalAlignment = Alignment.CenterHorizontally
+-        ) {
+-            Text(
+-                text = "Правильних відповідей",
+-                style = TextStyles.main
+-            )
+-            Text(
+-                text = gameResult.correctAnswersCount.toString(),
+-                style = TextStyles.bold
+-            )
+-        }
+-        Column(
+-            modifier = Modifier.weight(1f).padding(10.dp),
+-            horizontalAlignment = Alignment.CenterHorizontally
+-        ) {
+-            Text(
+-                text = "Хибних відповідей",
+-                style = TextStyles.main
+-            )
+-            Text(
+-                text = gameResult.wrongAnswersCount.toString(),
+-                style = TextStyles.bold
+-            )
+-        }
+-    }
+-}
+\ No newline at end of file
+diff --git a/composeApp/src/commonMain/kotlin/com/example/kmp_project/data/GameLevels.kt b/composeApp/src/commonMain/kotlin/com/example/kmp_project/data/GameLevels.kt
+index 6a2bb53..fdf2f8c 100644
+--- a/composeApp/src/commonMain/kotlin/com/example/kmp_project/data/GameLevels.kt
++++ b/composeApp/src/commonMain/kotlin/com/example/kmp_project/data/GameLevels.kt
+@@ -7,24 +7,24 @@ import testkmpproject.composeapp.generated.resources.colors
+ import testkmpproject.composeapp.generated.resources.directions
+ 
+ object GameLevels {
+-    val levels = mutableListOf(
++    val levels: List<LevelInfo> = listOf(
++        // Existing levels
+         LevelInfo(
+-            LevelType.Colors,
+-            "Кольори",
+-            "Потрібно вказати чи колір зображеної фігури відповідає кольору, зазначеному" +
++            type = LevelType.Colors,
++            name = "Кольори",
++            description = "Потрібно вказати чи колір зображеної фігури відповідає кольору, зазначеному" +
+                     " у тексті запитання. Для відповіді використовуйте кнопоки \"Так\" або \"Ні\"," +
+                     " розміщені під зображенням фігури.",
+-            Res.drawable.colors
++            imgPreview = Res.drawable.colors
+         ),
+         LevelInfo(
+-            LevelType.Directions,
+-            "Напрямки",
+-            "Потрібно вказати чи напрямок зображеної стрілки відповідає напрямку" +
++            type = LevelType.Directions,
++            name = "Напрямки",
++            description = "Потрібно вказати чи напрямок зображеної стрілки відповідає напрямку" +
+                     " у тексті запитання. Для відповіді використовуйте кнопоки \"Так\" або \"Ні\"," +
+                     " розміщені під зображенням стрілки.",
+-            Res.drawable.directions
++            imgPreview = Res.drawable.directions
+         )
+-    ).apply {
+-        addAll(List(5) { LevelInfo() })
+-    }
++        // Placeholder levels
++    ) + List(5) { LevelInfo() }
+ }
+\ No newline at end of file
+diff --git a/composeApp/src/commonMain/kotlin/com/example/kmp_project/data/GameResult.kt b/composeApp/src/commonMain/kotlin/com/example/kmp_project/data/GameResult.kt
+index 93326ca..95e7e04 100644
+--- a/composeApp/src/commonMain/kotlin/com/example/kmp_project/data/GameResult.kt
++++ b/composeApp/src/commonMain/kotlin/com/example/kmp_project/data/GameResult.kt
+@@ -4,4 +4,4 @@ data class GameResult(
+     val score: Int = 0,
+     val correctAnswersCount: Int = 0,
+     val wrongAnswersCount: Int = 0
+-)
++)
+\ No newline at end of file
+diff --git a/composeApp/src/commonMain/kotlin/com/example/kmp_project/models/LevelInfo.kt b/composeApp/src/commonMain/kotlin/com/example/kmp_project/models/LevelInfo.kt
+index 28e5a84..50ed84c 100644
+--- a/composeApp/src/commonMain/kotlin/com/example/kmp_project/models/LevelInfo.kt
++++ b/composeApp/src/commonMain/kotlin/com/example/kmp_project/models/LevelInfo.kt
+@@ -7,7 +7,7 @@ data class LevelInfo(
+     val name: String = "Скоро буде",
+     val description: String = "Чекайте в наступному оновленні",
+     val imgPreview: DrawableResource? = null,
+-    var bestScore: Int = 0
++    val bestScore: Int = 0
+ )
+ 
+ enum class LevelType {
+diff --git a/composeApp/src/commonMain/kotlin/com/example/kmp_project/ui/menu/MenuScreen.kt b/composeApp/src/commonMain/kotlin/com/example/kmp_project/ui/menu/MenuScreen.kt
+index 4f32def..48c3705 100644
+--- a/composeApp/src/commonMain/kotlin/com/example/kmp_project/ui/menu/MenuScreen.kt
++++ b/composeApp/src/commonMain/kotlin/com/example/kmp_project/ui/menu/MenuScreen.kt
+@@ -10,7 +10,6 @@ import androidx.compose.material.Button
+ import androidx.compose.material.Surface
+ import androidx.compose.material.Text
+ import androidx.compose.runtime.Composable
+-import androidx.compose.runtime.rememberCoroutineScope
+ import androidx.compose.runtime.snapshots.SnapshotStateList
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+@@ -20,6 +19,8 @@ import com.example.kmp_project.models.LevelInfo
+ import com.example.kmp_project.style.TextStyles
+ import kotlinx.coroutines.launch
+ import org.jetbrains.compose.resources.painterResource
++import testkmpproject.composeapp.generated.resources.Res
++import testkmpproject.composeapp.generated.resources.compose_multiplatform
+ 
+ @Composable
+ fun MenuScreen(
+@@ -29,12 +30,13 @@ fun MenuScreen(
+     onLevelStart: () -> Unit
+ ) {
+     Column(
+-        Modifier.fillMaxSize(),
++        modifier = Modifier.fillMaxSize(),
+         horizontalAlignment = Alignment.CenterHorizontally
+     ) {
+         LevelDetails(
+             levelInfo = gameLevels[selectedIndex],
+-            onLevelStart = onLevelStart
++            onLevelStart = onLevelStart,
++            isLevelAvailable = gameLevels[selectedIndex].imgPreview != null
+         )
+         LevelList(
+             levels = gameLevels,
+@@ -46,18 +48,21 @@ fun MenuScreen(
+ @Composable
+ fun LevelDetails(
+     levelInfo: LevelInfo,
+-    onLevelStart: () -> Unit
++    onLevelStart: () -> Unit,
++    isLevelAvailable: Boolean
+ ) {
+     Column(
+         horizontalAlignment = Alignment.CenterHorizontally,
+-        modifier = Modifier.fillMaxWidth().padding(16.dp)
++        modifier = Modifier
++            .fillMaxWidth()
++            .padding(16.dp)
+     ) {
+         Text("Найкращий результат", style = TextStyles.main)
+         Text(levelInfo.bestScore.toString(), style = TextStyles.bold)
+ 
+         levelInfo.imgPreview?.let { image ->
+             Image(
+-                painterResource(image),
++                painter = painterResource(image),
+                 contentDescription = null,
+                 modifier = Modifier
+                     .fillMaxWidth()
+@@ -66,16 +71,22 @@ fun LevelDetails(
+             )
+         }
+ 
+-        Text(levelInfo.name, style = TextStyles.title, modifier = Modifier.padding(top = 8.dp))
+         Text(
+-            levelInfo.description,
++            text = levelInfo.name,
++            style = TextStyles.title,
++            modifier = Modifier.padding(top = 8.dp)
++        )
++        Text(
++            text = levelInfo.description,
+             style = TextStyles.main,
+             textAlign = TextAlign.Center,
+             modifier = Modifier.padding(8.dp)
+         )
+ 
+-        Button(onClick = onLevelStart, modifier = Modifier.padding(top = 16.dp)) {
+-            Text("Почати гру")
++        if (isLevelAvailable) {
++            Button(onClick = onLevelStart, modifier = Modifier.padding(top = 16.dp)) {
++                Text("Почати гру")
++            }
+         }
+     }
+ }
+@@ -85,9 +96,10 @@ fun LevelList(
+     levels: List<LevelInfo>,
+     onLevelSelected: (Int) -> Unit
+ ) {
+-    val coroutineScope = rememberCoroutineScope()
+     LazyRow(
+-        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)
++        modifier = Modifier
++            .fillMaxWidth()
++            .padding(vertical = 10.dp)
+     ) {
+         itemsIndexed(levels) { index, level ->
+             LevelPreview(
+@@ -103,23 +115,33 @@ fun LevelPreview(
+     levelInfo: LevelInfo,
+     onPreviewClicked: () -> Unit
+ ) {
++    val isLevelAvailable = levelInfo.imgPreview != null
++    val modifier = Modifier
++        .size(width = 150.dp, height = 100.dp)
++        .padding(horizontal = 10.dp)
++        .then(
++            if (isLevelAvailable) {
++                Modifier.clickable { onPreviewClicked() }
++            } else {
++                Modifier
++            }
++        )
++
+     Surface(
+-        modifier = Modifier
+-            .size(150.dp, 100.dp)
+-            .padding(horizontal = 10.dp)
+-            .clickable { onPreviewClicked() }
++        modifier = modifier
+     ) {
+         Column(
+             horizontalAlignment = Alignment.CenterHorizontally,
+             modifier = Modifier.padding(10.dp)
+         ) {
+-            levelInfo.imgPreview?.let { image ->
+-                Image(
+-                    painterResource(image),
+-                    contentDescription = null,
+-                    modifier = Modifier.fillMaxWidth().height(50.dp)
+-                )
+-            }
++            val imageResource = levelInfo.imgPreview ?: Res.drawable.compose_multiplatform
++            Image(
++                painter = painterResource(imageResource),
++                contentDescription = null,
++                modifier = Modifier
++                    .fillMaxWidth()
++                    .height(50.dp)
++            )
+             Text(
+                 text = levelInfo.name,
+                 style = TextStyles.main,
+diff --git a/composeApp/src/desktopMain/kotlin/com/example/kmp_project/main.kt b/composeApp/src/desktopMain/kotlin/com/example/kmp_project/main.kt
+deleted file mode 100644
+index 05c3186..0000000
+--- a/composeApp/src/desktopMain/kotlin/com/example/kmp_project/main.kt
++++ /dev/null
+@@ -1,13 +0,0 @@
+-package com.example.kmp_project
+-
+-import androidx.compose.ui.window.Window
+-import androidx.compose.ui.window.application
+-
+-fun main() = application {
+-    Window(
+-        onCloseRequest = ::exitApplication,
+-        title = "TestKmpProject",
+-    ) {
+-        App()
+-    }
+-}
+\ No newline at end of file

@@ -7,7 +7,7 @@ data class LevelInfo(
     val name: String = "Скоро буде",
     val description: String = "Чекайте в наступному оновленні",
     val imgPreview: DrawableResource? = null,
-    var bestScore: Int = 0
+    val bestScore: Int = 0
 )
 
 enum class LevelType {
