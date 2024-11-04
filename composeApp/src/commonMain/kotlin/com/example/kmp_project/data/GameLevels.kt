@@ -7,24 +7,24 @@ import testkmpproject.composeapp.generated.resources.colors
 import testkmpproject.composeapp.generated.resources.directions
 
 object GameLevels {
-    val levels = mutableListOf(
+    val levels: List<LevelInfo> = listOf(
+        // Existing levels
         LevelInfo(
-            LevelType.Colors,
-            "Кольори",
-            "Потрібно вказати чи колір зображеної фігури відповідає кольору, зазначеному" +
+            type = LevelType.Colors,
+            name = "Кольори",
+            description = "Потрібно вказати чи колір зображеної фігури відповідає кольору, зазначеному" +
                     " у тексті запитання. Для відповіді використовуйте кнопоки \"Так\" або \"Ні\"," +
                     " розміщені під зображенням фігури.",
-            Res.drawable.colors
+            imgPreview = Res.drawable.colors
         ),
         LevelInfo(
-            LevelType.Directions,
-            "Напрямки",
-            "Потрібно вказати чи напрямок зображеної стрілки відповідає напрямку" +
+            type = LevelType.Directions,
+            name = "Напрямки",
+            description = "Потрібно вказати чи напрямок зображеної стрілки відповідає напрямку" +
                     " у тексті запитання. Для відповіді використовуйте кнопоки \"Так\" або \"Ні\"," +
                     " розміщені під зображенням стрілки.",
-            Res.drawable.directions
+            imgPreview = Res.drawable.directions
         )
-    ).apply {
-        addAll(List(5) { LevelInfo() })
-    }
+        // Placeholder levels
+    ) + List(5) { LevelInfo() }
 }
